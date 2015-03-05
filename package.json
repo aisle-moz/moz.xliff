@@ -1,7 +1,7 @@
 {
   "name": "moz.xliff",
   "description": "XLIFF language tooling",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Axel Hecht",
   "contributors": [
     {
@@ -16,6 +16,10 @@
   "plugins": {
     "plugin": {}
   },
-  "categories": ["miscellaneous"],
-  "licenses": ["MPL2"]
+  "categories": [
+    "miscellaneous"
+  ],
+  "licenses": [
+    "MPL2"
+  ]
 }
