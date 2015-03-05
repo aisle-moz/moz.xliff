@@ -1,0 +1,21 @@
+{
+  "name": "moz.xliff",
+  "description": "XLIFF language tooling",
+  "version": "0.0.1",
+  "author": "Axel Hecht",
+  "contributors": [
+    {
+      "name": "Axel Hecht",
+      "email": "axel@pike.org"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "plugins": {
+    "plugin": {}
+  },
+  "categories": ["miscellaneous"],
+  "licenses": ["MPL2"]
+}
