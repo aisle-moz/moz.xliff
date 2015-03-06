@@ -2,14 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
- define(function(require, exports, module) {
+define(function(require, exports, module) {
 
 var baseLanguageHandler = require('plugins/c9.ide.language/base_handler');
 var tree = require("treehugger/tree");
 var traverse = require("treehugger/traverse");
-var saxpath = './sax-js/lib/sax';
-if (false) saxpath += '.js';  // set to true if noworker
-var sax = require(saxpath);
+// make sure to add .js if ?noworker is specified
+var sax = require('./sax-js/lib/sax');
 
 var xliff = module.exports = Object.create(baseLanguageHandler);
 
@@ -22,6 +21,7 @@ xliff.parse = function(value, callback) {
     var depth = 0;
     var parser = sax.parser(true);
     var parserpos = {sl: 0, sc: 0};
+    var wantText = false;
     function bumpPos() {
         var _pos = parserpos;
         parserpos = {sl: parser.line, sc: parser.column};
@@ -44,7 +44,14 @@ xliff.parse = function(value, callback) {
     };
     parser.ontext = function(text) {
         // just placeholder to make sure we update positions
-        bumpPos();
+        if (wantText) {
+            var node = tree.string(text);
+            posify(node);
+            stack[depth].push(node);
+        }
+        else {
+            bumpPos();
+        }
     };
     parser.onattribute = function(attr) {
         // might be interesting if we had source start data
@@ -55,6 +62,7 @@ xliff.parse = function(value, callback) {
         ]);
         posify(namenode);
         stack.push([namenode]); ++depth;
+        wantText = node.name === 'source' || node.name === 'target';
         var attrs = [];
         for (var attrname in node.attributes) {
             attrs.push(tree.cons('Attr',
@@ -65,6 +73,7 @@ xliff.parse = function(value, callback) {
     };
     parser.onclosetag = function(name) {
         var children = stack.pop(); --depth;
+        wantText = false;
         var node = tree.cons('Element', children);
         var openPos = children[0].getPos();
         node.setAnnotation('pos', {
@@ -172,6 +181,80 @@ xliff.analyze = function(value, fullAst, callback, minimalAnalysis) {
             });
         });
     callback(items);
+};
+
+var TMCache = {};
+xliff.complete = function(doc, fullAst, pos, currentNode, callback) {
+    if (!currentNode) {
+        var huggerpos = {
+            line: pos.row,
+            col: pos.column
+        };
+        currentNode = fullAst.findNode(huggerpos);
+    }
+    if (!currentNode ||
+        !(currentNode.isMatch('Element(Name("target"),_)') ||
+          currentNode.isMatch('Element(Name("target"),_,_)'))) {
+        callback();
+        return;
+    }
+    var unit = currentNode.parent;
+    var file = unit.parent.parent;
+    var fileattrs = file[1];
+    var targetlang;
+    fileattrs.collectTopDown(
+        'Attr("target-language",lang)',
+        function(bindings, node) {
+            targetlang = bindings.lang.value;
+        }
+    );
+    if (!targetlang) {
+        callback();
+        return;
+    }
+    if (!TMCache[targetlang]) {
+        TMCache[targetlang] = {};
+    }
+    // find source child of trans-unit
+    var source;
+    for (var i=2; i < unit.length; ++i) {
+        if (unit[i].isMatch('Element(Name("source"), _, _)')) {
+            source = unit[i][2].value;
+        }
+    }
+    if (!source) {
+        callback();
+        return;
+    }
+    if (source in TMCache[targetlang]) {
+        callback(TMCache[targetlang][source]);
+        return;
+    }
+    // ok, I'm sorry, we've actually gotta do an xhr and load the data now
+    var xhr = new XMLHttpRequest();
+    var apiurl = "http://transvision.mozfr.org/api/v1/tm/aurora/en-US/";
+    apiurl += targetlang + "/" + encodeURIComponent(source) + '/';
+    apiurl += "?max_results=3&min_quality=80";
+    xhr.open("GET", apiurl, true);
+    xhr.onload = function() {
+        var response = JSON.parse(this.responseText);
+        var completions = [];
+        for (var i=0, ii=response.length; i < ii; ++i) {
+            completions.push({
+               name: response[i].target,
+               replaceText: response[i].target,
+               meta: "TM: " + response[i].quality,
+               priority: response[i].quality
+            });
+        }
+        TMCache[targetlang][source] = completions;
+        callback(completions);
+    };
+    xhr.onerror = function() {
+        console.log('error connecting to transvision');
+        callback();
+    };
+    xhr.send();
 };
 
 });
