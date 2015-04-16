@@ -232,7 +232,7 @@ xliff.complete = function(doc, fullAst, pos, currentNode, callback) {
     }
     // ok, I'm sorry, we've actually gotta do an xhr and load the data now
     var xhr = new XMLHttpRequest();
-    var apiurl = "http://transvision.mozfr.org/api/v1/tm/aurora/en-US/";
+    var apiurl = "https://transvision-proxy.paas.allizom.org/api/v1/tm/aurora/en-US/";
     apiurl += targetlang + "/" + encodeURIComponent(source) + '/';
     apiurl += "?max_results=3&min_quality=80";
     xhr.open("GET", apiurl, true);
